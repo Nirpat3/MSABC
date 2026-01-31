@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  name          String
+  category      String?
+  size          String?
+  proof         Float?
+  unitPrice     Float?
+  casePrice     Float?
+  isStocked     Boolean   @default(true)
+  isSpecialOrder Boolean  @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  priceHistory  PriceHistory[]
+  spas          ProductSPA[]
+}
+
+model PriceHistory {
+  id          String    @id @default(uuid())
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  unitPrice   Float?
+  casePrice   Float?
+  effectiveDate DateTime
+  createdAt   DateTime  @default(now())
+}
+
+model SPA {
+  id          String    @id @default(uuid())
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  discount    Float
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    ProductSPA[]
+}
+
+model ProductSPA {
+  id          String    @id @default(uuid())
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  spaId       String
+  spa         SPA       @relation(fields: [spaId], references: [id])
+  discountPrice Float?
+  createdAt   DateTime  @default(now())
+
+  @@unique([productId, spaId])
+}
+
+model SpecialOrder {
+  id            String    @id @default(uuid())
+  customerName  String
+  customerPhone String?
+  customerEmail String?
+  productCode   String
+  productName   String
+  quantity      Int
+  status        String    @default("pending")
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Forecast {
+  id            String    @id @default(uuid())
+  productCode   String
+  productName   String
+  forecastQty   Int
+  confidence    Float?
+  recommendation String?
+  weekStart     DateTime
+  weekEnd       DateTime
+  status        String    @default("pending")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model SyncLog {
+  id          String    @id @default(uuid())
+  type        String
+  status      String
+  message     String?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+}
+
+model TokenUsage {
+  id          String    @id @default(uuid())
+  operation   String
+  model       String
+  inputTokens Int
+  outputTokens Int
+  cost        Float
+  createdAt   DateTime  @default(now())
+}
