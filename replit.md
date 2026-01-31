@@ -35,9 +35,21 @@ ms-abc-app/
 - `GET /api/special-orders` - Special orders list
 - `GET /api/forecasts` - PO forecasts
 
+### AI Scraper Endpoints
+- `POST /api/scraper/analyze` - Analyze web page content with Claude AI
+- `POST /api/scraper/parse-products` - Parse HTML and extract product data using Claude AI
+- `POST /api/scraper/parse-spas` - Parse HTML and extract SPA deals using Claude AI
+- `GET /api/scraper/sync-logs` - Get recent sync operation logs
+
 ## Database
 Using Replit's built-in PostgreSQL database with Prisma ORM.
 Schema includes: Product, PriceHistory, SPA, ProductSPA, SpecialOrder, Forecast, SyncLog, TokenUsage
+
+## AI Integration
+Using Replit AI Integrations for Anthropic Claude access (no API key required, billed to Replit credits).
+- Claude Sonnet 4.5 for intelligent web scraping and data extraction
+- Parses MS ABC website HTML to extract product listings and SPA deals
+- Automatically classifies page types (price list, SPA, order form)
 
 ## Recent Changes
 - Initial setup: Created full-stack application from Docker-based GitHub import
@@ -45,3 +57,4 @@ Schema includes: Product, PriceHistory, SPA, ProductSPA, SpecialOrder, Forecast,
 - Set up frontend with React, Vite, and TailwindCSS
 - Configured database schema and seeded sample data
 - Configured Vite to allow all hosts for Replit proxy compatibility
+- Added Claude AI-powered browser scraping for MS ABC website data extraction
