@@ -1,0 +1,114 @@
+# MS ABC Retailer Management System
+# Docker Compose for pulling from Docker Hub
+#
+# Usage:
+#   1. Copy this file and .env.example to your server
+#   2. Rename .env.example to .env and configure
+#   3. Replace 'yourusername' with the actual Docker Hub username
+#   4. Run: docker compose -f docker-compose.hub.yml up -d
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: ms-abc-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-msabc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-msabc_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-ms_abc_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-msabc} -d ${POSTGRES_DB:-ms_abc_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and job queues
+  redis:
+    image: redis:7-alpine
+    container_name: ms-abc-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API - REPLACE 'yourusername' with your Docker Hub username
+  backend:
+    image: yourusername/ms-abc-backend:latest
+    container_name: ms-abc-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-msabc}:${POSTGRES_PASSWORD:-msabc_secure_password}@postgres:5432/${POSTGRES_DB:-ms_abc_db}?schema=public
+      REDIS_URL: redis://redis:6379
+      PORT: 3001
+      # AI/LLM Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      # Sync Configuration
+      SYNC_ENABLED: ${SYNC_ENABLED:-true}
+      SYNC_INTERVAL: ${SYNC_INTERVAL:-daily}
+      SYNC_RETRY_ATTEMPTS: ${SYNC_RETRY_ATTEMPTS:-3}
+      SYNC_RETRY_DELAY_MS: ${SYNC_RETRY_DELAY_MS:-60000}
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./generated-forms:/app/generated-forms
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+
+  # Frontend - REPLACE 'yourusername' with your Docker Hub username
+  frontend:
+    image: yourusername/ms-abc-frontend:latest
+    container_name: ms-abc-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+
+  # Database Optimization Worker
+  db-optimizer:
+    image: yourusername/ms-abc-backend:latest
+    container_name: ms-abc-db-optimizer
+    restart: unless-stopped
+    command: ["node", "dist/jobs/dbOptimizer.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-msabc}:${POSTGRES_PASSWORD:-msabc_secure_password}@postgres:5432/${POSTGRES_DB:-ms_abc_db}?schema=public
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      DB_OPTIMIZATION_INTERVAL_HOURS: ${DB_OPTIMIZATION_INTERVAL_HOURS:-24}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: ms-abc-network

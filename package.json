@@ -1,0 +1,33 @@
+{
+  "name": "ms-abc-app",
+  "version": "1.0.0",
+  "description": "Mississippi ABC Retailer Management System - Manage inventory, deals, special orders, and PO forecasting",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:all": "docker compose up -d postgres redis && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=@ms-abc/backend",
+    "dev:frontend": "npm run dev --workspace=@ms-abc/frontend",
+    "build": "npm run build --workspaces --if-present",
+    "db:migrate": "npm run db:migrate --workspace=@ms-abc/backend",
+    "db:seed": "npm run db:seed --workspace=@ms-abc/backend",
+    "scrape": "npm run scrape --workspace=@ms-abc/backend",
+    "test": "npm run test --workspaces --if-present",
+    "test:qa": "npm run test --workspace=@ms-abc/qa-tests",
+    "test:qa:api": "npm run test:api --workspace=@ms-abc/qa-tests",
+    "test:qa:db": "npm run test:db --workspace=@ms-abc/qa-tests",
+    "test:qa:frontend": "npm run test:frontend --workspace=@ms-abc/qa-tests",
+    "test:qa:install": "npm run test:install --workspace=@ms-abc/qa-tests",
+    "test:qa:regression": "npm run test:regression --workspace=@ms-abc/qa-tests",
+    "test:qa:report": "npm run report --workspace=@ms-abc/qa-tests"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
