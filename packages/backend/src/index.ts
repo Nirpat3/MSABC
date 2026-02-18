@@ -32,8 +32,8 @@ app.get('/api/products', async (req, res) => {
     const where: any = {};
     if (search) {
       where.OR = [
-        { name: { contains: search as string } },
-        { code: { contains: search as string } },
+        { name: { contains: search as string, mode: 'insensitive' } },
+        { code: { contains: search as string, mode: 'insensitive' } },
       ];
     }
     if (category) where.category = category;

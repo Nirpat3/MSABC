@@ -45,16 +45,13 @@ async function main() {
   const crownRoyal = await prisma.product.findUnique({ where: { code: 'CC001' } });
   
   if (jackDaniels && crownRoyal) {
-    for (const data of [
-      { productId: jackDaniels.id, spaId: spa.id, discountPrice: 26.99 },
-      { productId: crownRoyal.id, spaId: spa.id, discountPrice: 29.69 },
-    ]) {
-      await prisma.productSPA.upsert({
-        where: { productId_spaId: { productId: data.productId, spaId: data.spaId } },
-        update: data,
-        create: data,
-      });
-    }
+    await prisma.productSPA.createMany({
+      data: [
+        { productId: jackDaniels.id, spaId: spa.id, discountPrice: 26.99 },
+        { productId: crownRoyal.id, spaId: spa.id, discountPrice: 29.69 },
+      ],
+      skipDuplicates: true,
+    });
   }
 
   console.log('Database seeded successfully!');
