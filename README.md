@@ -231,29 +231,33 @@ docker compose version
 
 ## Installation & Running the Application
 
-### Method 1: One-Click Run (Fastest - No Docker Required)
+### Method 1: One-Click Run with Docker (Recommended)
 
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/ms-abc-app.git
 cd ms-abc-app
 
-# Run the app (installs everything automatically)
+# Run the app (builds and starts everything automatically)
 ./run.sh
 ```
 
 This single command will:
-- ✅ Check prerequisites (Node.js >= 18, PostgreSQL)
-- ✅ Start PostgreSQL if not running
-- ✅ Create database and user automatically
-- ✅ Generate `.env` configuration
-- ✅ Install all npm dependencies
-- ✅ Set up database schema and seed data
-- ✅ Start both backend (port 3001) and frontend (port 5000)
+- ✅ Check Docker is installed and running
+- ✅ Create directories and `.env` with secure passwords
+- ✅ Build and start all containers (PostgreSQL, Redis, Backend, Frontend)
+- ✅ Apply database schema and seed sample data
+- ✅ Show you the URLs when everything is ready
 
-**Requirements:** Node.js >= 18 and PostgreSQL installed locally.
+**Requirements:** Docker Desktop only. No Node.js or PostgreSQL needed on your machine.
 
-### Method 2: One-Click Docker Installation
+Once running:
+- **App**: http://localhost:3000
+- **API**: http://localhost:3001
+
+To stop: `docker compose down` | To start again: `docker compose up -d`
+
+### Method 2: Docker with install.sh
 
 ```bash
 # Clone the repository

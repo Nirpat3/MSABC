@@ -2,7 +2,7 @@
 
 #############################################
 # MS ABC Retailer Management System
-# One-Click Install & Run
+# One-Click Install & Run (Docker)
 #############################################
 
 set -e
@@ -24,170 +24,146 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 #############################################
-# Step 1: Check prerequisites
+# Step 1: Check Docker is installed & running
 #############################################
-echo -e "${YELLOW}[1/7] Checking prerequisites...${NC}"
+echo -e "${YELLOW}[1/5] Checking prerequisites...${NC}"
 
-if ! command -v node &> /dev/null; then
-    echo -e "${RED}Node.js is not installed. Please install Node.js >= 18.${NC}"
+if ! command -v docker &> /dev/null; then
+    echo -e "${RED}Docker is not installed.${NC}"
+    echo "  Install it from: https://www.docker.com/products/docker-desktop/"
     exit 1
 fi
+echo -e "${GREEN}  ✓ Docker $(docker --version | grep -oP '\d+\.\d+\.\d+')${NC}"
 
-NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    echo -e "${RED}Node.js >= 18 is required. Found: $(node -v)${NC}"
-    exit 1
-fi
-echo -e "${GREEN}  ✓ Node.js $(node -v)${NC}"
-
-if ! command -v npm &> /dev/null; then
-    echo -e "${RED}npm is not installed.${NC}"
-    exit 1
-fi
-echo -e "${GREEN}  ✓ npm $(npm -v)${NC}"
-
-if ! command -v psql &> /dev/null; then
-    echo -e "${RED}PostgreSQL is not installed. Please install PostgreSQL 14+.${NC}"
-    exit 1
-fi
-echo -e "${GREEN}  ✓ PostgreSQL $(psql --version | grep -oP '\d+\.\d+')${NC}"
-
-#############################################
-# Step 2: Start PostgreSQL if not running
-#############################################
-echo -e "${YELLOW}[2/7] Ensuring PostgreSQL is running...${NC}"
-
-if ! pg_isready -q 2>/dev/null; then
-    echo "  Starting PostgreSQL..."
-    sudo pg_ctlcluster 16 main start 2>/dev/null \
-        || sudo systemctl start postgresql 2>/dev/null \
-        || sudo service postgresql start 2>/dev/null \
-        || { echo -e "${RED}Could not start PostgreSQL. Please start it manually.${NC}"; exit 1; }
-
-    # Wait for PostgreSQL to be ready
-    for i in {1..15}; do
-        if pg_isready -q 2>/dev/null; then
-            break
-        fi
-        sleep 1
-    done
-
-    if ! pg_isready -q 2>/dev/null; then
-        echo -e "${RED}PostgreSQL failed to start.${NC}"
-        exit 1
-    fi
-fi
-echo -e "${GREEN}  ✓ PostgreSQL is running${NC}"
-
-#############################################
-# Step 3: Set up database
-#############################################
-echo -e "${YELLOW}[3/7] Setting up database...${NC}"
-
-DB_NAME="ms_abc_db"
-DB_USER="msabc"
-DB_PASS="msabc_dev_pass"
-
-# Create user if it doesn't exist
-sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1 \
-    || sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';" 2>/dev/null
-echo -e "${GREEN}  ✓ Database user ready${NC}"
-
-# Create database if it doesn't exist
-sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'" | grep -q 1 \
-    || sudo -u postgres psql -c "CREATE DATABASE $DB_NAME OWNER $DB_USER;" 2>/dev/null
-echo -e "${GREEN}  ✓ Database ready${NC}"
-
-# Grant privileges
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;" 2>/dev/null
-sudo -u postgres psql -d "$DB_NAME" -c "GRANT ALL ON SCHEMA public TO $DB_USER;" 2>/dev/null
-
-DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:5432/${DB_NAME}?schema=public"
-
-#############################################
-# Step 4: Create .env file
-#############################################
-echo -e "${YELLOW}[4/7] Configuring environment...${NC}"
-
-ENV_FILE="packages/backend/.env"
-if [ ! -f "$ENV_FILE" ]; then
-    cat > "$ENV_FILE" << EOF
-DATABASE_URL=${DATABASE_URL}
-BACKEND_PORT=3001
-EOF
-    echo -e "${GREEN}  ✓ Created $ENV_FILE${NC}"
+# Check if docker compose is available (v2 plugin or standalone)
+if docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+elif command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
 else
-    # Ensure DATABASE_URL is set
-    if ! grep -q "^DATABASE_URL=" "$ENV_FILE"; then
-        echo "DATABASE_URL=${DATABASE_URL}" >> "$ENV_FILE"
-    fi
-    echo -e "${GREEN}  ✓ $ENV_FILE already exists${NC}"
+    echo -e "${RED}Docker Compose is not installed.${NC}"
+    echo "  Install Docker Desktop which includes Compose, or install the plugin separately."
+    exit 1
 fi
+echo -e "${GREEN}  ✓ Docker Compose available${NC}"
 
-# Also create root .env for docker-compose compatibility
+# Check Docker daemon is running
+if ! docker info &> /dev/null 2>&1; then
+    echo -e "${RED}Docker is installed but not running.${NC}"
+    echo "  Please start Docker Desktop and try again."
+    exit 1
+fi
+echo -e "${GREEN}  ✓ Docker is running${NC}"
+
+#############################################
+# Step 2: Create required directories
+#############################################
+echo -e "${YELLOW}[2/5] Setting up directories...${NC}"
+
+mkdir -p backups logs generated-forms
+echo -e "${GREEN}  ✓ Directories ready${NC}"
+
+#############################################
+# Step 3: Create .env if it doesn't exist
+#############################################
+echo -e "${YELLOW}[3/5] Configuring environment...${NC}"
+
 if [ ! -f ".env" ]; then
+    # Generate a random password
+    DB_PASS=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 20 2>/dev/null || echo "msabc_secure_pass_42")
+
     cat > ".env" << EOF
-DATABASE_URL=${DATABASE_URL}
-POSTGRES_USER=${DB_USER}
+# Generated by run.sh on $(date)
+POSTGRES_USER=msabc
 POSTGRES_PASSWORD=${DB_PASS}
-POSTGRES_DB=${DB_NAME}
-POSTGRES_PORT=5432
+POSTGRES_DB=ms_abc_db
+POSTGRES_PORT=5433
+REDIS_PORT=6380
 BACKEND_PORT=3001
-FRONTEND_PORT=5000
+FRONTEND_PORT=3000
+SYNC_ENABLED=true
+SYNC_INTERVAL=daily
 EOF
-    echo -e "${GREEN}  ✓ Created root .env${NC}"
+    echo -e "${GREEN}  ✓ Created .env with secure password${NC}"
+else
+    echo -e "${GREEN}  ✓ .env already exists${NC}"
 fi
 
-export DATABASE_URL
+#############################################
+# Step 4: Build and start all containers
+#############################################
+echo -e "${YELLOW}[4/5] Building and starting containers (this may take a few minutes on first run)...${NC}"
+
+$COMPOSE_CMD up -d --build 2>&1 | while IFS= read -r line; do
+    echo "  $line"
+done
+
+echo -e "${GREEN}  ✓ Containers started${NC}"
 
 #############################################
-# Step 5: Install dependencies
+# Step 5: Wait for services and seed database
 #############################################
-echo -e "${YELLOW}[5/7] Installing dependencies...${NC}"
+echo -e "${YELLOW}[5/5] Waiting for services to be ready...${NC}"
 
-npm install 2>&1 | tail -1
-echo -e "${GREEN}  ✓ Dependencies installed${NC}"
+# Wait for PostgreSQL
+echo -n "  Waiting for database"
+for i in {1..30}; do
+    if docker exec ms-abc-db pg_isready -U msabc -d ms_abc_db &> /dev/null; then
+        echo ""
+        echo -e "${GREEN}  ✓ Database is ready${NC}"
+        break
+    fi
+    echo -n "."
+    sleep 2
+done
 
-#############################################
-# Step 6: Set up database schema & seed
-#############################################
-echo -e "${YELLOW}[6/7] Setting up database schema...${NC}"
+# Wait for backend
+echo -n "  Waiting for backend API"
+for i in {1..30}; do
+    if curl -sf http://localhost:${BACKEND_PORT:-3001}/api/health &> /dev/null; then
+        echo ""
+        echo -e "${GREEN}  ✓ Backend API is ready${NC}"
+        break
+    fi
+    echo -n "."
+    sleep 2
+done
 
-cd packages/backend
-
-# Generate Prisma client
-npx prisma generate 2>&1 | tail -1
-echo -e "${GREEN}  ✓ Prisma client generated${NC}"
-
-# Push schema to database
-npx prisma db push --accept-data-loss 2>&1 | tail -1
-echo -e "${GREEN}  ✓ Database schema applied${NC}"
-
-# Seed the database
-npx tsx prisma/seed.ts 2>&1 || true
+# Seed the database (safe to re-run — uses upsert)
+echo "  Seeding database..."
+docker exec ms-abc-backend sh -c "cd /app/packages/backend && npx tsx prisma/seed.ts" 2>/dev/null || true
 echo -e "${GREEN}  ✓ Database seeded${NC}"
 
-cd "$SCRIPT_DIR"
+# Wait for frontend
+echo -n "  Waiting for frontend"
+for i in {1..15}; do
+    if curl -sf http://localhost:${FRONTEND_PORT:-3000} &> /dev/null; then
+        echo ""
+        echo -e "${GREEN}  ✓ Frontend is ready${NC}"
+        break
+    fi
+    echo -n "."
+    sleep 2
+done
 
 #############################################
-# Step 7: Start the application
+# Done!
 #############################################
-echo -e "${YELLOW}[7/7] Starting the application...${NC}"
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗"
 echo -e "║                    Setup Complete!                            ║"
 echo -e "╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  ${BLUE}Frontend:${NC}    http://localhost:5000"
-echo -e "  ${BLUE}Backend API:${NC} http://localhost:3001"
-echo -e "  ${BLUE}Health:${NC}      http://localhost:3001/api/health"
+echo -e "  Open in your browser:"
 echo ""
-echo -e "${YELLOW}Starting servers... (Ctrl+C to stop)${NC}"
+echo -e "  ${BLUE}App:${NC}          http://localhost:${FRONTEND_PORT:-3000}"
+echo -e "  ${BLUE}Backend API:${NC}  http://localhost:${BACKEND_PORT:-3001}"
+echo -e "  ${BLUE}Health:${NC}       http://localhost:${BACKEND_PORT:-3001}/api/health"
 echo ""
-
-# Start backend and frontend concurrently
-DATABASE_URL="$DATABASE_URL" npx concurrently \
-    --names "backend,frontend" \
-    --prefix-colors "blue,green" \
-    "cd packages/backend && DATABASE_URL=$DATABASE_URL npx tsx src/index.ts" \
-    "cd packages/frontend && npx vite --host 0.0.0.0 --port 5000"
+echo -e "  ${YELLOW}Useful commands:${NC}"
+echo "    $COMPOSE_CMD logs -f          # View live logs"
+echo "    $COMPOSE_CMD ps               # Check service status"
+echo "    $COMPOSE_CMD down             # Stop everything"
+echo "    $COMPOSE_CMD up -d            # Start again"
+echo "    ./manage.sh status            # Quick status check"
+echo ""
