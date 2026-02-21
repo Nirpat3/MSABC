@@ -1,5 +1,34 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import Sidebar from './components/Sidebar'
+import LoginPage from './pages/LoginPage'
+import { ReactNode } from 'react'
+
+// --- Protected Route Wrapper ---
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth()
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+  return <>{children}</>
+}
+
+// --- Layout with Sidebar ---
+
+function AppLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <Sidebar />
+      <div className="ml-64">
+        <main>{children}</main>
+      </div>
+    </div>
+  )
+}
+
+// --- Page Components ---
 
 function Dashboard() {
   const { data: health, isLoading } = useQuery({
@@ -71,34 +100,60 @@ function SpecialOrders() {
   )
 }
 
+// --- App Router ---
+
+function AppRoutes() {
+  const { isAuthenticated } = useAuth()
+
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+      />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <AppLayout><Dashboard /></AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/products"
+        element={
+          <ProtectedRoute>
+            <AppLayout><Products /></AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/deals"
+        element={
+          <ProtectedRoute>
+            <AppLayout><Deals /></AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/special-orders"
+        element={
+          <ProtectedRoute>
+            <AppLayout><SpecialOrders /></AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-100">
-        <nav className="bg-blue-800 text-white">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center justify-between h-16">
-              <div className="flex items-center space-x-4">
-                <span className="text-xl font-bold">MS ABC</span>
-                <div className="hidden md:flex space-x-4">
-                  <Link to="/" className="px-3 py-2 rounded hover:bg-blue-700">Dashboard</Link>
-                  <Link to="/products" className="px-3 py-2 rounded hover:bg-blue-700">Products</Link>
-                  <Link to="/deals" className="px-3 py-2 rounded hover:bg-blue-700">Deals</Link>
-                  <Link to="/special-orders" className="px-3 py-2 rounded hover:bg-blue-700">Special Orders</Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </nav>
-        <main>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/deals" element={<Deals />} />
-            <Route path="/special-orders" element={<SpecialOrders />} />
-          </Routes>
-        </main>
-      </div>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   )
 }
